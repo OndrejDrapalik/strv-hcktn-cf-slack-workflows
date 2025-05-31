@@ -20,6 +20,11 @@ features:
       description: List all users in the workspace
       usage_hint: Just type /list-users
       should_escape: false
+    - command: /peer-feedback
+      url: https://mindzero.dev/slack/events
+      description: Give feedback to a team member
+      usage_hint: Type /peer-feedback to start
+      should_escape: false
 oauth_config:
   scopes:
     bot:

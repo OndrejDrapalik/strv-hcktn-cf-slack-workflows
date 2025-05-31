@@ -1,4 +1,11 @@
-import { SlackApp, SlackEdgeAppEnv, isPostedMessageEvent, AnyMessageBlock } from "slack-cloudflare-workers";
+import { SlackApp, SlackEdgeAppEnv, isPostedMessageEvent, ButtonAction, BlockAction, SectionBlock, DividerBlock } from "slack-cloudflare-workers";
+import { 
+  createFeedbackStep, 
+  collectFeedbackData, 
+  createReviewStep, 
+  createFeedbackSummary 
+} from "./handlers";
+import { FeedbackMetadata } from "./types";
 
 export default {
   async fetch(request: Request, env: SlackEdgeAppEnv, ctx: ExecutionContext): Promise<Response> {
@@ -85,7 +92,7 @@ export default {
             );
             
             // Create blocks for the response
-            const blocks: AnyMessageBlock[] = [
+            const blocks: (SectionBlock | DividerBlock)[] = [
               {
                 type: "section",
                 text: {
@@ -176,6 +183,221 @@ export default {
           // Except updating the modal view using response_action,
           // you can asynchronously do any tasks here!
         },
+      )
+      // Feedback command
+      .command(
+        "/peer-feedback",
+        async () => "", // acknowledge immediately
+        async ({ context, payload }) => {
+          // Open the initial user selection modal
+          await context.client.views.open({
+            trigger_id: payload.trigger_id,
+            view: {
+              type: "modal",
+              callback_id: "feedback_user_select",
+              title: { type: "plain_text", text: "Give Feedback" },
+              submit: { type: "plain_text", text: "Next" },
+              close: { type: "plain_text", text: "Cancel" },
+              blocks: [
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "Select a team member to give feedback to:"
+                  }
+                },
+                {
+                  type: "input",
+                  block_id: "user_select",
+                  element: {
+                    type: "users_select",
+                    placeholder: {
+                      type: "plain_text",
+                      text: "Select a user"
+                    },
+                    action_id: "selected_user"
+                  },
+                  label: {
+                    type: "plain_text",
+                    text: "Team Member"
+                  }
+                }
+              ],
+              private_metadata: JSON.stringify({
+                channel_id: payload.channel_id,
+                user_id: payload.user_id,
+                step: 1
+              })
+            }
+          });
+        },
+      )
+      // Feedback modal handlers
+      .viewSubmission(
+        "feedback_user_select",
+        async ({ payload }) => {
+          const metadata = JSON.parse(payload.view.private_metadata) as FeedbackMetadata;
+          const selectedUser = payload.view.state.values.user_select.selected_user.selected_user;
+          metadata.selected_user = selectedUser;
+          metadata.step = 2;
+          
+          return {
+            response_action: "update" as const,
+            view: createFeedbackStep(2, metadata)
+          };
+        },
+        async () => {}
+      )
+      .viewSubmission(
+        "feedback_back_to_user_select",
+        async ({ payload }) => {
+          const metadata = JSON.parse(payload.view.private_metadata) as FeedbackMetadata;
+          // Go back to user selection
+          return {
+            response_action: "update" as const,
+            view: {
+              type: "modal" as const,
+              callback_id: "feedback_user_select",
+              title: { type: "plain_text" as const, text: "Give Feedback" },
+              submit: { type: "plain_text" as const, text: "Next" },
+              close: { type: "plain_text" as const, text: "Cancel" },
+              blocks: [
+                {
+                  type: "section" as const,
+                  text: {
+                    type: "mrkdwn" as const,
+                    text: "Select a team member to give feedback to:"
+                  }
+                },
+                {
+                  type: "input" as const,
+                  block_id: "user_select",
+                  element: {
+                    type: "users_select" as const,
+                    placeholder: {
+                      type: "plain_text" as const,
+                      text: "Select a user"
+                    },
+                    action_id: "selected_user",
+                    initial_user: metadata.selected_user
+                  },
+                  label: {
+                    type: "plain_text" as const,
+                    text: "Team Member"
+                  }
+                }
+              ],
+              private_metadata: JSON.stringify(metadata)
+            }
+          };
+        },
+        async () => {}
+      )
+      .viewSubmission(
+        /^feedback_step_\d+$/,
+        async ({ payload }) => {
+          const metadata = JSON.parse(payload.view.private_metadata) as FeedbackMetadata;
+          const stepNum = parseInt(payload.view.callback_id.split("_")[2]);
+          
+          // Collect data from current step
+          collectFeedbackData(stepNum, payload.view.state.values, metadata);
+          
+          if (stepNum < 5) {
+            // Move to next step
+            metadata.step = stepNum + 1;
+            return {
+              response_action: "update" as const,
+              view: createFeedbackStep(stepNum + 1, metadata)
+            };
+          } else {
+            // Final step - show review
+            return {
+              response_action: "update" as const,
+              view: createReviewStep(metadata)
+            };
+          }
+        },
+        async () => {}
+      )
+      .viewSubmission(
+        "feedback_review",
+        async () => ({ response_action: "clear" as const }),
+        async ({ context, payload }) => {
+          const metadata = JSON.parse(payload.view.private_metadata) as FeedbackMetadata;
+          const feedbackSummary = createFeedbackSummary(metadata);
+          
+          await context.client.chat.postMessage({
+            channel: metadata.channel_id,
+            text: feedbackSummary.text,
+            blocks: feedbackSummary.blocks
+          });
+        }
+      )
+      // Back button handlers
+      .action(
+        /^back_to_\d+$/,
+        async () => {}, // acknowledge
+        async ({ context, payload }) => {
+          const action = payload.actions[0] as ButtonAction;
+          if (action.action_id.startsWith("back_to_") && 'view' in payload) {
+            const blockAction = payload as BlockAction<ButtonAction> & { view: { id: string; private_metadata: string } };
+            const targetStep = parseInt(action.value);
+            const metadata = JSON.parse(blockAction.view.private_metadata) as FeedbackMetadata;
+            
+            await context.client.views.update({
+              view_id: blockAction.view.id,
+              view: createFeedbackStep(targetStep, metadata)
+            });
+          }
+        }
+      )
+      .action(
+        "back_to_user_select",
+        async () => {}, // acknowledge
+        async ({ context, payload }) => {
+          if ('view' in payload) {
+            const blockAction = payload as BlockAction<ButtonAction> & { view: { id: string; private_metadata: string } };
+            const metadata = JSON.parse(blockAction.view.private_metadata) as FeedbackMetadata;
+            
+            await context.client.views.update({
+              view_id: blockAction.view.id,
+              view: {
+                type: "modal" as const,
+                callback_id: "feedback_user_select",
+                title: { type: "plain_text" as const, text: "Give Feedback" },
+                submit: { type: "plain_text" as const, text: "Next" },
+                close: { type: "plain_text" as const, text: "Cancel" },
+                blocks: [
+                  {
+                    type: "section" as const,
+                    text: {
+                      type: "mrkdwn" as const,
+                      text: "Select a team member to give feedback to:"
+                    }
+                  },
+                  {
+                    type: "input" as const,
+                    block_id: "user_select",
+                    element: {
+                      type: "users_select" as const,
+                      placeholder: {
+                        type: "plain_text" as const,
+                        text: "Select a user"
+                      },
+                      action_id: "selected_user",
+                      initial_user: metadata.selected_user
+                    },
+                    label: {
+                      type: "plain_text" as const,
+                      text: "Team Member"
+                    }
+                  }
+                ],
+                private_metadata: JSON.stringify(metadata)
+              }
+            });
+          }
+        }
       );
     return await app.run(request, ctx);
   },

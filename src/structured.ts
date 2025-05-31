@@ -14,6 +14,11 @@ import {
   asyncShortcutResponse,
   helloMessage, 
   otherMessages,
+  ackFeedbackCommand,
+  asyncFeedbackResponse,
+  ackFeedbackModalSubmission,
+  asyncFeedbackModalResponse,
+  feedbackBackButtonHandler,
 } from "./handlers";
 
 export default {
@@ -53,6 +58,31 @@ export default {
         // respond within 3 seconds to update/close the opening modal
         ackModalSubmission,
         asyncModalResponse,
+      )
+      .command(
+        "/peer-feedback",
+        ackFeedbackCommand,
+        asyncFeedbackResponse,
+      )
+      .viewSubmission(
+        "feedback_user_select",
+        ackFeedbackModalSubmission,
+        asyncFeedbackModalResponse,
+      )
+      .viewSubmission(
+        /^feedback_step_\d+$/,
+        ackFeedbackModalSubmission,
+        asyncFeedbackModalResponse,
+      )
+      .viewSubmission(
+        "feedback_review",
+        ackFeedbackModalSubmission,
+        asyncFeedbackModalResponse,
+      )
+      .action(
+        /^back_to_\d+$/,
+        noopAckHandler,
+        feedbackBackButtonHandler,
       );
     return await app.run(request, ctx);
   },
