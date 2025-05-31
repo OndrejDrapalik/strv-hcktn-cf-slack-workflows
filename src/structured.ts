@@ -3,10 +3,12 @@
 import { SlackApp, SlackEdgeAppEnv } from "slack-cloudflare-workers";
 import {
   ackCommand,
+  ackListUsersCommand,
   ackModalSubmission,
   appMention,
   asyncButtonResponse,
   asyncCommandResponse,
+  asyncListUsersResponse,
   asyncMessageShortcut,
   asyncModalResponse,
   asyncShortcutResponse,
@@ -30,6 +32,11 @@ export default {
         "/hello-cf-workers",
         ackCommand, // complete this within 3 seconds
         asyncCommandResponse,
+      )
+      .command(
+        "/list-users",
+        ackListUsersCommand, // complete this within 3 seconds
+        asyncListUsersResponse,
       )
       .shortcut(
         "hey-cf-workers",

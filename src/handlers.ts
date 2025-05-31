@@ -72,6 +72,68 @@ export const asyncCommandResponse: SlashCommandLazyHandler = async ({ context })
   await context.respond({ text: "What's up?" });
 };
 
+export const ackListUsersCommand: SlashCommandAckHandler = async () => "Fetching users...";
+export const asyncListUsersResponse: SlashCommandLazyHandler = async ({ context }) => {
+  try {
+    // Fetch users from the Slack workspace
+    const result = await context.client.users.list({
+      limit: 200, // Adjust as needed
+    });
+    
+    if (!result.ok || !result.members) {
+      await context.respond({ text: "Failed to fetch users." });
+      return;
+    }
+    
+    // Filter out bots and deleted users
+    const activeUsers = result.members.filter(
+      (user) => !user.is_bot && !user.deleted && user.id !== "USLACKBOT"
+    );
+    
+    // Create blocks for the response
+    const blocks = [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*Active Users in Workspace* (${activeUsers.length} total)`,
+        },
+      },
+      {
+        type: "divider",
+      },
+    ];
+    
+    // Add user information
+    const userList = activeUsers
+      .map((user) => {
+        const name = user.real_name || user.name || "Unknown";
+        const email = user.profile?.email || "No email";
+        const title = user.profile?.title || "No title";
+        return `• *${name}* (<@${user.id}>)\n  _${title}_ | ${email}`;
+      })
+      .join("\n\n");
+    
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: userList || "No active users found.",
+      },
+    });
+    
+    await context.respond({
+      text: `Found ${activeUsers.length} active users`,
+      blocks,
+    });
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    await context.respond({
+      text: "An error occurred while fetching users. Please try again later.",
+    });
+  }
+};
+
 export const asyncShortcutResponse: ShortcutLazyHandler = async ({ context, payload }) => {
   // You can do anything time-consuing tasks here!
   await context.client.views.open({

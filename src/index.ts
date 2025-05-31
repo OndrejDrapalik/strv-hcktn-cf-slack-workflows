@@ -1,4 +1,4 @@
-import { SlackApp, SlackEdgeAppEnv, isPostedMessageEvent } from "slack-cloudflare-workers";
+import { SlackApp, SlackEdgeAppEnv, isPostedMessageEvent, AnyMessageBlock } from "slack-cloudflare-workers";
 
 export default {
   async fetch(request: Request, env: SlackEdgeAppEnv, ctx: ExecutionContext): Promise<Response> {
@@ -62,6 +62,70 @@ export default {
         async ({ context }) => {
           // You can do anything time-consuing tasks here!
           await context.respond({ text: "What's up?" });
+        },
+      )
+      .command(
+        "/list-users",
+        async () => "Fetching users...", // complete this within 3 seconds
+        async ({ context }) => {
+          try {
+            // Fetch users from the Slack workspace
+            const result = await context.client.users.list({
+              limit: 200, // Adjust as needed
+            });
+            
+            if (!result.ok || !result.members) {
+              await context.respond({ text: "Failed to fetch users." });
+              return;
+            }
+            
+            // Filter out bots and deleted users
+            const activeUsers = result.members.filter(
+              (user) => !user.is_bot && !user.deleted && user.id !== "USLACKBOT"
+            );
+            
+            // Create blocks for the response
+            const blocks: AnyMessageBlock[] = [
+              {
+                type: "section",
+                text: {
+                  type: "mrkdwn",
+                  text: `*Active Users in Workspace* (${activeUsers.length} total)`,
+                },
+              },
+              {
+                type: "divider",
+              },
+            ];
+            
+            // Add user information
+            const userList = activeUsers
+              .map((user) => {
+                const name = user.real_name || user.name || "Unknown";
+                const email = user.profile?.email || "No email";
+                const title = user.profile?.title || "No title";
+                return `• *${name}* (<@${user.id}>)\n  _${title}_ | ${email}`;
+              })
+              .join("\n\n");
+            
+            blocks.push({
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: userList || "No active users found.",
+              },
+            });
+            
+            await context.respond({
+              text: `Found ${activeUsers.length} active users`,
+              blocks,
+            });
+          } catch (error) {
+            console.error("Error fetching users:", error);
+            await context.respond({
+              text: "An error occurred while fetching users. Please try again later.",
+            });
+          }
         },
       )
       .shortcut(

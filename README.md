@@ -1,8 +1,8 @@
-# Slack Cloudflare Workers Bot
+# strv-hcktn-cf-slack-workflows
 
 A Slack bot application built to run on Cloudflare Workers. The bot responds to mentions, slash commands, button interactions, and messages containing "Hello".
 
-This is a fork of [slack-edge/slack-cloudflare-workers](https://github.com/slack-edge/slack-cloudflare-workers).
+This is a fork of [OndrejDrapalik/strv-hcktn-cf-slack-workflows](https://github.com/OndrejDrapalik/strv-hcktn-cf-slack-workflows).
 
 ## TODO
 
@@ -16,7 +16,7 @@ This is a fork of [slack-edge/slack-cloudflare-workers](https://github.com/slack
 
 ```bash
 git clone <repository-url>
-cd slack-cloudflare-workers
+cd strv-hcktn-cf-slack-workflows
 ```
 
 ### 2. Install Dependencies
@@ -132,5 +132,4 @@ To deploy to Cloudflare Workers:
 
 - **Bot not responding**: Check that your bot is invited to the channel
 - **Webhook errors**: Ensure your tunnel is running and the URLs in Slack match
-- **Authentication errors**: Verify your environment variables are set correctly# strv-hcktn-cf-slack-workflows
-# strv-hcktn-cf-slack-workflows
+- **Authentication errors**: Verify your environment variables are set correctly

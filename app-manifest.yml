@@ -15,6 +15,11 @@ features:
       description: Say hello from Cloudflare Workers
       usage_hint: Just type /
       should_escape: false
+    - command: /list-users
+      url: https://mindzero.dev/slack/events
+      description: List all users in the workspace
+      usage_hint: Just type /list-users
+      should_escape: false
 oauth_config:
   scopes:
     bot:
@@ -24,6 +29,8 @@ oauth_config:
       - app_mentions:read
       - channels:history
       - channels:join
+      - users:read
+      - users:read.email
 settings:
   event_subscriptions:
     request_url: https://mindzero.dev/slack/events

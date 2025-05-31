@@ -13,16 +13,16 @@ This is a Slack bot application built to run on Cloudflare Workers. The bot resp
 pnpm install
 
 # Start local development server on port 9999
-npm run dev
+pnpm run dev
 
 # Deploy to Cloudflare Workers
-npm run deploy
+pnpm run deploy
 
 # Run tests (currently no tests implemented)
-npm test
+pnpm test
 
 # Start development with Cloudflared tunnel (for Slack webhook testing)
-npm run dev:proxy
+pnpm run dev:proxy
 ```
 
 ## Architecture
